@@ -21,8 +21,6 @@ ENV SCRIPTS_HEALTHCHECK_PATH="$SCRIPTS_HEALTHCHECK_D/healthcheck.sh"
 ##############################
 FROM base AS build
 
-RUN echo "Scripts Dir: $UTILITY_D, $INITDB_D, $HEALTHCHECK_D, $HEALTHCHECK_PATH"
-
 # Mount the scripts
 COPY "$UTILITY_D/*" "$SCRIPTS_UTILITY_D/"
 COPY "$INITDB_D/*" "$SCRIPTS_INITDB_D/"
