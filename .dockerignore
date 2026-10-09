@@ -1,0 +1,112 @@
+############################
+# Logs and databases
+############################
+
+logs
+*.log
+
+.tmp
+*.sql
+
+
+############################
+# Environment variables
+############################
+
+.env
+.env.*
+!.env.example
+
+
+############################
+# Git
+############################
+
+.git
+.gitignore
+.gitattributes
+
+
+############################
+# Docker Files
+############################
+
+.dockerignore
+
+Dockerfile
+Dockerfile.*
+
+docker-compose.yaml
+docker-compose.*.yaml
+
+
+############################
+# IDEs and Editors
+############################
+
+.vscode
+.idea
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+
+############################
+# OS X
+############################
+
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+._*
+Icon
+
+
+############################
+# Linux
+############################
+
+*~
+
+
+############################
+# Windows
+############################
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+
+############################
+# Documentation
+############################
+
+README.md
+LICENSE
+docs
+
+
+############################
+# Temporary files
+############################
+
+tmp
+temp
+*.tmp
+
+
+############################
+# CI/CD
+############################
+
+.github
+.gitlab-ci.yml
