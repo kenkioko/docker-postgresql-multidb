@@ -32,6 +32,6 @@ RUN find "$SCRIPTS_UTILITY_D/" -name "*.sh" -exec chmod +x {} +
 RUN find "$SCRIPTS_INITDB_D/" -name "*.sh" -exec chmod +x {} +
 RUN find "$SCRIPTS_HEALTHCHECK_D/" -name "*.sh" -exec chmod +x {} +
 
-# Healthcheck every five minutes or so
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+# Healthcheck every ten seconds or so
+HEALTHCHECK --interval=10s --timeout=10s \
   CMD "$SCRIPTS_HEALTHCHECK_PATH" || exit 1

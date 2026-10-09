@@ -16,7 +16,7 @@ function check_database() {
 if [ -f "$utility_db" ]; then
   default_db=$("$utility_db" "--function=defaultdb")
 
-  if [ -f "$default_db" ]; then
+  if [ -n "$default_db" ]; then
     echo "Default database healthcheck: $default_db"
     check_database $default_db
   fi

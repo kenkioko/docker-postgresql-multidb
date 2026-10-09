@@ -4,48 +4,6 @@ set -e
 set -u
 
 
-# Format database user into associative array.
-# If 'db_password' is not set then db_password=""
-format_database_user() {
-  # $1 = output associative array name
-  # $2 = input indexed array name
-
-  local -n userf="$1"
-  local -n user="$2"
-
-  # populate 'db_user' and default password
-  if (( ${#user[@]} > 0 )); then
-    userf["db_user"]="${user[0]}"
-    userf["db_password"]=""
-  fi
-
-  # populate 'db_password'
-  if (( ${#user[@]} > 1 )); then
-    userf["db_password"]="${user[1]}"
-  fi
-}
-
-# Format database into associative array.
-# If 'db_user' is not set then db_user="db_name:"
-format_database() {
-  # $1 = output associative array name
-  # $2 = input indexed array name
-
-  local -n databasef="$1"
-  local -n database="$2"
-
-  # populate 'db_name' and default user
-  if (( ${#database[@]} > 0 )); then
-    databasef["db_name"]="${database[0]}"
-    databasef["db_user"]="${database[0]}:"
-  fi
-
-  # populate 'db_user'
-  if (( ${#database[@]} > 1 )); then
-    databasef["db_user"]="${database[1]}"
-  fi
-}
-
 # Split string using delimiter into an array.
 split_string() {
   # $1 = output array name
@@ -53,7 +11,6 @@ split_string() {
   # $2 = input delimiter to use in split
   
   local -n array="$1"
-  # local -n string="$2"
 
   local string="${2-}"
   local delimiter="${3-}"
@@ -74,12 +31,16 @@ split_string() {
   fi
 }
 
-# Split and format database user info into an associative array.
+# Split database user info string into an associative array.
+# If 'db_password' is not set then db_password=""
 # 
 # Database User Input:
 #   - db_user
 #   - "db_user:"
 #   - "db_user:db_password"
+# 
+# Output:
+#   ([db_user]="db_user" [db_password]="db_password")
 split_database_user() {
   # $1 = output associative array name
   # $2 = input database user string
@@ -91,18 +52,30 @@ split_database_user() {
   local -a user_info=()
   split_string user_info "$user" ":"
 
-  # format 'user_info'
-  format_database_user user_output user_info
+  # populate 'db_user' with default password
+  if [[ ${#user_info[@]} -gt 0 ]]; then
+    user_output["db_user"]="${user_info[0]}"
+    user_output["db_password"]=""
+  fi
+
+  # populate 'db_password'
+  if [[ ${#user_info[@]} -gt 1 ]]; then
+    user_output["db_password"]="${user_info[1]}"
+  fi
 }
 
-# Split and format database info to array.
+# Split database and user info string to an associative array.
+# If 'db_user' is not set then db_user="db_name:"
 # 
 # Database Input:
-# - db1
-# - "db-1"
-# - "db_name/db_user"
-# - "db_name/db_user:"
-# - "db_name/db_user:db_password"
+#   - db1
+#   - "db-1"
+#   - "db_name/db_user"
+#   - "db_name/db_user:"
+#   - "db_name/db_user:db_password"
+# 
+# Output:
+#   ([db_name]="db_name" [db_user]="db_user" [db_password]="db_password")
 split_database() {
   # $1 = output associative array name
   # $2 = input database string
@@ -114,11 +87,24 @@ split_database() {
   local -a database_info=()
   split_string database_info "$database" "/"
 
-  # format 'database_info'
-  format_database database_output database_info
+  # populate 'db_name' with default 'db_user' and 'db_password'
+  if [[ ${#database_info[@]} -gt 0 ]]; then
+    database_output["db_name"]="${database_info[0]}"
+    database_output["db_user"]="${database_info[0]}"
+    database_output["db_password"]=""
+  fi
+
+  # split and populate 'db_user', 'db_password'
+  if [[ ${#database_info[@]} -gt 1 ]]; then
+    local -A user_array=()
+    split_database_user user_array "${database_info[1]}"
+
+    database_output["db_user"]="${user_array[db_user]}"
+    database_output["db_password"]="${user_array[db_password]}"
+  fi
 }
 
-# Split multiple databases to array
+# Split multiple databases string to array
 # 
 # Multiple Databases Input:
 # - db1,db2,...
@@ -148,9 +134,15 @@ default_database() {
   local -n defaultdb_output="$1"
   local databases="${2-}"
 
-  # from default database variable
-	if [ -n "${POSTGRES_DB=""}" ]; then
-    defaultdb_output="$POSTGRES_DB"
+  # from environment variables
+	if [ -n "${POSTGRES_DB-}" ]; then
+    local db_string="$POSTGRES_DB"
+
+    if [ -n "${POSTGRES_USER-}" ]; then
+      db_string="$POSTGRES_DB/$POSTGRES_USER"
+    fi
+
+    defaultdb_output="$db_string"
     return
   fi
 
@@ -159,7 +151,7 @@ default_database() {
   multiple_database multipledb_array "$databases"
 
   # default as first item in multiple database
-  if [[ "${#multipledb_array[@]}" -gt 0 ]]; then
+  if [ "${#multipledb_array[@]}" -gt 0 ]; then
     defaultdb_output="${multipledb_array[0]}"
     return
   fi
@@ -168,68 +160,62 @@ default_database() {
 # Check health of database by connecting to it
 check_database() {
   # $1 = output associative array name
-  # $2 = input multiple database string
+  # $2 = input database string
 
   local -n checkdb_output="$1"
   local database="${2-}"
 
   # split 'database'
-  local -A database_array
-  split_database database_array "$database"
-
-  # split 'db_user'
-  declare -A user_array
-  split_database_user user_array "${database_array[db_user]}"
+  local -A db_info
+  split_database db_info "$database"
 
   # check connection with 'db_user'
-  if [ "${database_array[db_name]}" != "$POSTGRES_DB" ]; then
-    pg_isready -U "${user_array[db_user]}" -d "${database_array[db_name]}" || exit 1
+  if [ "${db_info[db_user]}" != "$POSTGRES_USER" ]; then
+    pg_isready -U "${db_info[db_user]}" -d "${db_info[db_name]}" || exit 1
   fi
 
   # check connection with 'POSTGRES_USER'
-  pg_isready -U $POSTGRES_USER -d "${database_array[db_name]}" || exit 1
+  pg_isready -U $POSTGRES_USER -d "${db_info[db_name]}" || exit 1
 
-  # update 'createdb_output'
-  checkdb_output["db_name"]="${database_array[db_name]}"
-  checkdb_output["db_user"]="${user_array[db_user]}"
+  # update 'checkdb_output'
+  checkdb_output["db_name"]="${db_info[db_name]}"
+  checkdb_output["db_user"]="${db_info[db_user]}"
   checkdb_output["healthy"]="true"
 }
 
 # Create non default user and database
 create_user_and_database() {
   # $1 = output associative array name
-  # $2 = input multiple database string
+  # $2 = input database string
 
   local -n createdb_output="$1"
   local database="${2-}"
 
   # split 'database'
-  local -A database_array
-  split_database database_array "$database"
+  local -A db_info
+  split_database db_info "$database"
 
-  # split 'db_user'
-  declare -A user_array
-  split_database_user user_array "${database_array[db_user]}"
-
-  # create non default user and database
-  local with_password="$([ -n "${user_array[db_password]}" ] && echo 'true' || echo 'false')"
-  local create_db="$([ "${database_array[db_name]}" != "$POSTGRES_DB" ] && echo 'true' || echo 'false')"
-  local create_user="$([ "${user_array[db_user]}" != "$POSTGRES_USER" ] && echo 'true' || echo 'false')"
+  # create non default database and database user
+  local with_password="$([ -n "${db_info[db_password]}" ] && echo 'true' || echo 'false')"
+  local create_db="$([ "${db_info[db_name]}" != "$POSTGRES_DB" ] && echo 'true' || echo 'false')"
+  local create_user="$([ "${db_info[db_user]}" != "$POSTGRES_USER" ] && echo 'true' || echo 'false')"
   
   psql \
     -v ON_ERROR_STOP=1 \
     -v with_password="$with_password" \
     -v create_db="$create_db" \
     -v create_user="$create_user" \
-    -v db_name="${database_array[db_name]}" \
-    -v db_user="${user_array[db_user]}" \
+    -v db_name="${db_info[db_name]}" \
+    -v db_user="${db_info[db_user]}" \
     --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
       -- Conditional execution via psql variable passed from bash
+      \echo
+      \echo Creating user ":"db_user" and database ":"db_user"
 
       -- Create user
       \if :create_user
         \if :with_password
-          CREATE USER :"db_user" WITH PASSWORD '${user_array[db_password]}';
+          CREATE USER :"db_user" WITH PASSWORD '${db_info[db_password]}';
         \else
           CREATE USER :"db_user";
         \endif
@@ -238,13 +224,24 @@ create_user_and_database() {
       -- Create db
       \if :create_db
         CREATE DATABASE :"db_name";
-        GRANT ALL PRIVILEGES ON DATABASE :"db_name" TO :"db_user";
       \endif
+
+      -- Connect to database
+      \c :"db_name"
+
+      -- Grant permissions
+      GRANT ALL PRIVILEGES ON DATABASE :"db_name" TO :"db_user";
+      GRANT ALL ON SCHEMA public TO :"db_user";
+
+      -- Success message
+      \echo Creation success
+      \echo
+
 			EOSQL
 
   # update 'createdb_output'
-  createdb_output["db_name"]="${database_array[db_name]}"
-  createdb_output["db_user"]="${user_array[db_user]}"
+  createdb_output["db_name"]="${db_info[db_name]}"
+  createdb_output["db_user"]="${db_info[db_user]}"
   createdb_output["success"]="true"
 }
 
@@ -281,11 +278,12 @@ print_error() {
   echo "Try '$0 --help' for more information." >&2
 }
 
+# -------- Script Logic Starts Here --------
+
 # Initialize variables with default values
 VERBOSE=false
 FUNCTION=""
 ARGS=""
-ALL="$@"
 
 # Loop through all arguments passed to the script
 while [ $# -gt 0 ]; do
@@ -342,14 +340,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# # ---- Script Logic Starts Here ----
-
-# echo "Verbose Mode:  $VERBOSE"
-# echo "Function:      $FUNCTION"
-# echo "Args:          $ARGS"
-# echo "ALL Params     $ALL"
-# echo ""
-
 # Validate helper function
 if [ -z "$FUNCTION" ]; then
   print_error "Helper function is missing."
@@ -358,14 +348,6 @@ fi
 
 # Determine helper function
 case "$FUNCTION" in
-  splitdb|split_database)
-    declare -A database_array
-    split_database database_array "$ARGS"
-    
-    # print array values as individually quoted strings
-    echo "${database_array[db_name]}" "${database_array[db_user]}"
-    ;;
-    
   splitu|split_user)
     declare -A user_array
     split_database_user user_array "$ARGS"
@@ -374,6 +356,14 @@ case "$FUNCTION" in
     echo "${user_array[db_user]}" "${user_array[db_password]}"
     ;;
 
+  splitdb|split_database)
+    declare -A database_array
+    split_database database_array "$ARGS"
+    
+    # print array values as individually quoted strings
+    echo "${database_array[db_name]}" "${database_array[db_user]}" "${database_array[db_password]}"
+    ;;
+    
   multipledb|multiple_database)
     declare -a multipledb_array
     multiple_database multipledb_array "$ARGS"
@@ -383,27 +373,21 @@ case "$FUNCTION" in
     ;;
 
   defaultdb|default_database)
-    declare -a defaultdb
+    declare defaultdb
     default_database defaultdb "$ARGS"
 
     # print defaultdb string
-    echo "${defaultdb}"
+    echo "${defaultdb-}"
     ;;
 
   checkdb|check_database)
     declare -A checkdb
-    check_database checkdb "$ARGS" 
-    
-    # print success message
-    # echo "Created user '${createdb[db_user]}' and database '${createdb[db_name]}'"
+    check_database checkdb "$ARGS"
     ;;
 
   createdb|create_database)
     declare -A createdb
-    create_user_and_database createdb "$ARGS" 
-    
-    # print success message
-    # echo "Created user '${createdb[db_user]}' and database '${createdb[db_name]}'"
+    create_user_and_database createdb "$ARGS"
     ;;
     
   *)
