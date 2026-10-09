@@ -4,6 +4,18 @@ set -e
 set -u
 
 
+# validate_array() {
+#   # Check for indexed array
+#   if [[ ${my_var@a} == *a* ]]; then
+#     echo "It's an indexed array"
+#   fi
+
+#   # Check for associative array
+#   if [[ ${my_var@a} == *A* ]]; then
+#     echo "It's an associative array"
+#   fi
+# }
+
 # Split string using delimiter into an array.
 split_string() {
   # $1 = output array name
