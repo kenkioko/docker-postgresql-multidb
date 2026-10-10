@@ -4,11 +4,17 @@ services:
   postgres:
     container_name: docker-multidb-postgres
     image: multidb-postgres:latest
+    restart: unless-stopped
+    # Uncomment if you encounter platform errors on Apple Silicon
+    # platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - path: .env
+    # Uncomment if you want to expose database ports to the host
+    # ports:
+    #   - "5432:5432"
     ports:
       - "5432:5432"
     networks:
@@ -22,6 +28,7 @@ services:
   adminer:
     container_name: docker-multidb-adminer
     image: adminer:latest
+    restart: unless-stopped
     environment:
       - ADMINER_DEFAULT_SERVER=docker-multidb-postgres
     ports:
