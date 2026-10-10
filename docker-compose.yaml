@@ -28,7 +28,8 @@ services:
     image: adminer:latest
     restart: unless-stopped
     environment:
-      - ADMINER_DEFAULT_SERVER=docker-multidb-postgres
+      ADMINER_DEFAULT_SYSTEM: pgsql
+      ADMINER_DEFAULT_SERVER: docker-multidb-postgres
     ports:
       - "8888:8080"
     networks:
