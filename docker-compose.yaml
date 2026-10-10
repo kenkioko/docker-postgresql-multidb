@@ -15,8 +15,6 @@ services:
     # Uncomment if you want to expose database ports to the host
     # ports:
     #   - "5432:5432"
-    ports:
-      - "5432:5432"
     networks:
       - multidb
     volumes:
